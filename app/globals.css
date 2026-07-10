@@ -28,6 +28,21 @@ main { min-height:100vh; display:flex; flex-direction:column; }
 .song-info small { margin-top:3px; color:#89918c; font-size:9px; }
 .song-card em { padding:4px 6px; border-radius:99px; background:#f1f2ef; color:#738078; font-size:8px; font-style:normal; font-weight:700; }
 .song-card.selected em { background:#d9eee0; color:var(--green); }
+.import-card { min-width:218px; padding:10px 12px; display:flex; gap:10px; align-items:center; border:1px dashed #a8bdb0; border-radius:12px; background:#f7faf8; color:var(--green); cursor:pointer; scroll-snap-align:start; }
+.import-card input { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
+.import-plus { display:grid; place-items:center; width:30px; height:30px; flex:0 0 auto; border-radius:50%; background:#dcefe3; font-size:20px; line-height:1; }
+.import-card strong,.import-card small { display:block; }
+.import-card strong { font-size:11px; }.import-card small { margin-top:3px; color:#819087; font-size:8px; }
+.recent-midi { display:flex; gap:10px; align-items:center; margin-top:6px; overflow:hidden; }
+.recent-label { flex:0 0 auto; color:#7d8881; font-size:9px; font-weight:700; }
+.recent-list { display:flex; gap:6px; overflow-x:auto; padding:2px 0; scrollbar-width:none; }
+.recent-item { display:flex; align-items:stretch; border:1px solid #dfe2dd; border-radius:8px; background:#fff; overflow:hidden; }
+.recent-item button { border:0; background:transparent; cursor:pointer; }
+.recent-item > button:first-child { min-width:112px; padding:6px 8px; text-align:left; }
+.recent-item strong,.recent-item small { display:block; max-width:130px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.recent-item strong { font-size:9px; color:#435048; }.recent-item small { margin-top:2px; font-size:8px; color:#929b95; }
+.remove-midi { padding:0 7px; border-left:1px solid #eceeeb!important; color:#9ba39e; font-size:14px; }
+.import-error { margin:7px 0 0; color:#a34538; font-size:10px; }
 .practice { width:min(860px, 100%); margin:0 auto; padding:22px 24px 0; }
 .progress-row { display:flex; gap:14px; align-items:center; color:#69736d; font-size:12px; }
 .progress-row strong { color:#46514b; font-variant-numeric:tabular-nums; }

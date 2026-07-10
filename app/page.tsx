@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { deleteMidi, loadMidi, MidiHistoryItem, parseMidiFile, saveMidi } from "./midi";
 
 type Note = { midi: number; name: string; hand: "R" | "L" };
 type Song = { id: string; title: string; subtitle: string; level: string; notes: Note[] };
@@ -16,8 +17,20 @@ const SONGS: Song[] = [
   { id: "scale", title: "다장조 음계", subtitle: "기초 손가락 연습", level: "연습", notes: makeNotes([60,62,64,65,67,69,71,72,71,69,67,65,64,62,60]) },
 ];
 
-const KEYS = Array.from({ length: 13 }, (_, i) => 60 + i);
 const BLACK = new Set([1, 3, 6, 8, 10]);
+const HISTORY_COOKIE = "pianote_midi_history";
+
+function readHistory(): MidiHistoryItem[] {
+  if (typeof document === "undefined") return [];
+  const value = document.cookie.split("; ").find((part) => part.startsWith(`${HISTORY_COOKIE}=`))?.split("=").slice(1).join("=");
+  if (!value) return [];
+  try { return JSON.parse(decodeURIComponent(value)) as MidiHistoryItem[]; }
+  catch { return []; }
+}
+
+function writeHistory(items: MidiHistoryItem[]) {
+  document.cookie = `${HISTORY_COOKIE}=${encodeURIComponent(JSON.stringify(items.slice(0, 8)))}; Max-Age=31536000; Path=/; SameSite=Lax; Secure`;
+}
 
 function midiName(midi: number) {
   const names = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
@@ -64,6 +77,10 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number) {
 
 export default function Home() {
   const [songId, setSongId] = useState(SONGS[0].id);
+  const [customSongs, setCustomSongs] = useState<Song[]>([]);
+  const [history, setHistory] = useState<MidiHistoryItem[]>([]);
+  const [importError, setImportError] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
   const [index, setIndex] = useState(0);
   const [micState, setMicState] = useState<"idle" | "listening" | "error">("idle");
   const [heardMidi, setHeardMidi] = useState<number | null>(null);
@@ -74,7 +91,10 @@ export default function Home() {
   const stableRef = useRef({ midi: -1, count: 0, lastAdvance: 0 });
   const indexRef = useRef(index);
   indexRef.current = index;
-  const song = SONGS.find((item) => item.id === songId) ?? SONGS[0];
+  const allSongs = [...SONGS, ...customSongs];
+  const song = allSongs.find((item) => item.id === songId) ?? SONGS[0];
+
+  useEffect(() => setHistory(readHistory()), []);
 
   const acceptNote = useCallback((midi: number, source: "mic" | "key" = "mic") => {
     if (completed) return;
@@ -177,8 +197,57 @@ export default function Home() {
     setMessage(`마이크를 켜고 첫 음 ${nextSong.notes[0].name}를 연주하세요`);
   }
 
+  function songFromMidi(id: string, title: string, notes: number[]): Song {
+    return { id: `midi-${id}`, title, subtitle: "내 MIDI · 기기 내 저장", level: "MIDI", notes: makeNotes(notes) };
+  }
+
+  async function importBuffer(buffer: ArrayBuffer, filename: string, existingId?: string) {
+    setIsImporting(true);
+    setImportError("");
+    try {
+      const parsed = parseMidiFile(buffer, filename);
+      const id = existingId ?? `${Date.now().toString(36)}-${buffer.byteLength.toString(36)}`;
+      await saveMidi(id, buffer);
+      const item: MidiHistoryItem = { id, name: filename.slice(0, 80), title: parsed.title.slice(0, 60), noteCount: parsed.notes.length, importedAt: Date.now() };
+      const nextHistory = [item, ...history.filter((entry) => entry.id !== id)].slice(0, 8);
+      setHistory(nextHistory);
+      writeHistory(nextHistory);
+      const nextSong = songFromMidi(id, parsed.title, parsed.notes);
+      setCustomSongs((songs) => [...songs.filter((entry) => entry.id !== nextSong.id), nextSong]);
+      selectSong(nextSong);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "MIDI 파일을 읽지 못했습니다.");
+    } finally { setIsImporting(false); }
+  }
+
+  async function handleMidiFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) await importBuffer(await file.arrayBuffer(), file.name);
+    event.target.value = "";
+  }
+
+  async function reopenMidi(item: MidiHistoryItem) {
+    const buffer = await loadMidi(item.id);
+    if (!buffer) {
+      setImportError("이 기기에서 MIDI 파일을 찾지 못했습니다. 다시 불러와 주세요.");
+      return;
+    }
+    await importBuffer(buffer, item.name, item.id);
+  }
+
+  async function removeHistory(item: MidiHistoryItem) {
+    await deleteMidi(item.id);
+    const nextHistory = history.filter((entry) => entry.id !== item.id);
+    setHistory(nextHistory);
+    writeHistory(nextHistory);
+    setCustomSongs((songs) => songs.filter((entry) => entry.id !== `midi-${item.id}`));
+    if (songId === `midi-${item.id}`) selectSong(SONGS[0]);
+  }
+
   const current = song.notes[index];
   const visibleNotes = song.notes.slice(index, index + 6);
+  const keyboardStart = current.midi - (current.midi % 12);
+  const keyboardKeys = Array.from({ length: 13 }, (_, keyIndex) => keyboardStart + keyIndex);
 
   return (
     <main>
@@ -189,16 +258,23 @@ export default function Home() {
       </header>
 
       <nav className="song-library" aria-label="연습곡 선택">
-        <div className="library-heading"><span>연습곡</span><strong>{SONGS.length}곡</strong></div>
+        <div className="library-heading"><span>연습곡</span><strong>{allSongs.length}곡</strong></div>
         <div className="song-list">
-          {SONGS.map((item, songIndex) => (
+          {allSongs.map((item, songIndex) => (
             <button key={item.id} className={`song-card ${item.id === song.id ? "selected" : ""}`} onClick={() => selectSong(item)} aria-pressed={item.id === song.id}>
               <span className="song-number">{String(songIndex + 1).padStart(2, "0")}</span>
               <span className="song-info"><strong>{item.title}</strong><small>{item.subtitle} · {item.notes.length}음</small></span>
               <em>{item.level}</em>
             </button>
           ))}
+          <label className="import-card">
+            <input type="file" accept=".mid,.midi,audio/midi,audio/x-midi" onChange={handleMidiFile} disabled={isImporting} />
+            <span className="import-plus">+</span>
+            <span><strong>{isImporting ? "불러오는 중…" : "내 MIDI 불러오기"}</strong><small>파일은 이 기기에만 저장됩니다</small></span>
+          </label>
         </div>
+        {history.length > 0 && <div className="recent-midi"><span className="recent-label">최근 MIDI</span><div className="recent-list">{history.map((item) => <div className="recent-item" key={item.id}><button onClick={() => reopenMidi(item)}><strong>{item.title}</strong><small>{item.noteCount}음</small></button><button className="remove-midi" onClick={() => removeHistory(item)} aria-label={`${item.title} 기록 삭제`}>×</button></div>)}</div></div>}
+        {importError && <p className="import-error" role="alert">{importError}</p>}
       </nav>
 
       <section className="practice" aria-live="polite">
@@ -211,7 +287,7 @@ export default function Home() {
         <div className="falling-stage">
           <div className="staff-lines" />
           {visibleNotes.map((note, position) => {
-            const whiteIndex = KEYS.filter((key) => !BLACK.has(key % 12)).indexOf(note.midi);
+            const whiteIndex = keyboardKeys.filter((key) => !BLACK.has(key % 12)).indexOf(note.midi);
             return (
               <div
                 className={`falling-note ${position === 0 ? "active" : ""}`}
@@ -226,13 +302,13 @@ export default function Home() {
         </div>
 
         <div className="keyboard" aria-label="테스트용 피아노 건반">
-          {KEYS.filter((midi) => !BLACK.has(midi % 12)).map((midi) => (
+          {keyboardKeys.filter((midi) => !BLACK.has(midi % 12)).map((midi) => (
             <button key={midi} className={`white-key ${current.midi === midi ? "target" : ""}`} onClick={() => acceptNote(midi, "key")} aria-label={`${midiName(midi)} 연주`}>
               <span>{midiName(midi).replace(/\d/, "")}</span>
             </button>
           ))}
-          {KEYS.filter((midi) => BLACK.has(midi % 12)).map((midi) => {
-            const precedingWhites = KEYS.filter((key) => key < midi && !BLACK.has(key % 12)).length;
+          {keyboardKeys.filter((midi) => BLACK.has(midi % 12)).map((midi) => {
+            const precedingWhites = keyboardKeys.filter((key) => key < midi && !BLACK.has(key % 12)).length;
             return <button key={midi} className="black-key" style={{ left: `${precedingWhites * 12.5 - 3.2}%` }} onClick={() => acceptNote(midi, "key")} aria-label={`${midiName(midi)} 연주`} />;
           })}
         </div>
