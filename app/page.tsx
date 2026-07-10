@@ -50,38 +50,55 @@ function keyCenter(midi: number, keys: number[]) {
   return (Math.max(0, whiteIndex) + 0.5) * 12.5;
 }
 
-function autoCorrelate(buffer: Float32Array, sampleRate: number) {
+function detectPitchYin(buffer: Float32Array, sampleRate: number) {
+  let mean = 0;
+  for (const value of buffer) mean += value;
+  mean /= buffer.length;
   let rms = 0;
-  for (const value of buffer) rms += value * value;
+  for (const value of buffer) rms += (value - mean) ** 2;
   rms = Math.sqrt(rms / buffer.length);
-  if (rms < 0.018) return { frequency: -1, clarity: 0, level: rms };
+  if (rms < 0.006) return { frequency: -1, clarity: 0, level: rms };
 
-  const minLag = Math.floor(sampleRate / 1050);
-  const maxLag = Math.min(Math.floor(sampleRate / 60), buffer.length - 1);
-  let bestLag = -1;
-  let best = 0;
-
-  for (let lag = minLag; lag <= maxLag; lag++) {
-    let correlation = 0;
-    let normA = 0;
-    let normB = 0;
-    for (let i = 0; i < buffer.length - lag; i += 2) {
-      correlation += buffer[i] * buffer[i + lag];
-      normA += buffer[i] * buffer[i];
-      normB += buffer[i + lag] * buffer[i + lag];
+  // YIN's cumulative mean normalized difference rejects piano harmonics much
+  // more reliably than choosing the largest autocorrelation peak.
+  const minTau = Math.max(2, Math.floor(sampleRate / 1200));
+  const maxTau = Math.min(Math.floor(sampleRate / 55), Math.floor(buffer.length / 2) - 1);
+  const windowLength = Math.min(2048, buffer.length - maxTau);
+  const difference = new Float32Array(maxTau + 1);
+  for (let tau = minTau; tau <= maxTau; tau++) {
+    let sum = 0;
+    for (let i = 0; i < windowLength; i++) {
+      const delta = buffer[i] - buffer[i + tau];
+      sum += delta * delta;
     }
-    const normalized = correlation / Math.sqrt(normA * normB || 1);
-    if (normalized > best) {
-      best = normalized;
-      bestLag = lag;
-    }
+    difference[tau] = sum;
   }
 
-  return {
-    frequency: bestLag > 0 && best > 0.72 ? sampleRate / bestLag : -1,
-    clarity: best,
-    level: rms,
-  };
+  let runningSum = 0;
+  let selectedTau = -1;
+  let bestTau = -1;
+  let bestValue = 1;
+  for (let tau = minTau; tau <= maxTau; tau++) {
+    runningSum += difference[tau];
+    const normalized = runningSum > 0 ? difference[tau] * (tau - minTau + 1) / runningSum : 1;
+    difference[tau] = normalized;
+    if (normalized < bestValue) { bestValue = normalized; bestTau = tau; }
+  }
+  for (let tau = minTau; tau <= maxTau; tau++) {
+    if (difference[tau] >= 0.16) continue;
+    while (tau + 1 <= maxTau && difference[tau + 1] < difference[tau]) tau++;
+    selectedTau = tau;
+    break;
+  }
+  if (selectedTau < 0 && bestValue < 0.3) selectedTau = bestTau;
+  if (selectedTau < 0) return { frequency: -1, clarity: 0, level: rms };
+
+  const left = difference[Math.max(minTau, selectedTau - 1)];
+  const center = difference[selectedTau];
+  const right = difference[Math.min(maxTau, selectedTau + 1)];
+  const denominator = 2 * (2 * center - right - left);
+  const refinedTau = denominator ? selectedTau + (right - left) / denominator : selectedTau;
+  return { frequency: sampleRate / refinedTau, clarity: 1 - center, level: rms };
 }
 
 export default function Home() {
@@ -97,7 +114,7 @@ export default function Home() {
   const [message, setMessage] = useState("마이크를 켜고 첫 음 E4를 연주하세요");
   const [completed, setCompleted] = useState(false);
   const audioRef = useRef<{ context: AudioContext; stream: MediaStream; frame: number } | null>(null);
-  const stableRef = useRef({ midi: -1, count: 0, lastAdvance: 0 });
+  const stableRef = useRef({ midi: -1, count: 0, lastAdvance: 0, recent: [] as number[], silence: 0, lockedMidi: -1 });
   const indexRef = useRef(index);
   indexRef.current = index;
   const allSongs = [...SONGS, ...customSongs];
@@ -117,11 +134,18 @@ export default function Home() {
     const now = performance.now();
     if (source === "mic") {
       const stable = stableRef.current;
+      if (stable.lockedMidi === midi) return;
+      stable.recent.push(midi);
+      if (stable.recent.length > 5) stable.recent.shift();
+      const sorted = [...stable.recent].sort((a, b) => a - b);
+      const medianMidi = sorted[Math.floor(sorted.length / 2)];
+      if (stable.recent.length >= 3 && medianMidi !== midi) return;
       stable.count = stable.midi === midi ? stable.count + 1 : 1;
       stable.midi = midi;
       if (stable.count < 3 || now - stable.lastAdvance < 450) return;
       stable.lastAdvance = now;
       stable.count = 0;
+      stable.lockedMidi = midi;
     }
 
     const next = indexRef.current + 1;
@@ -168,11 +192,23 @@ export default function Home() {
       let lastAnalysis = 0;
       const analyse = (time: number) => {
         if (!audioRef.current) return;
-        if (time - lastAnalysis > 45) {
+        if (time - lastAnalysis > 65) {
           analyser.getFloatTimeDomainData(data);
-          const result = autoCorrelate(data, context.sampleRate);
-          setLevel(Math.min(1, result.level * 12));
-          if (result.frequency > 0) acceptNote(frequencyToMidi(result.frequency));
+          const result = detectPitchYin(data, context.sampleRate);
+          setLevel(Math.min(1, result.level * 18));
+          const stable = stableRef.current;
+          if (result.frequency > 0 && result.clarity > 0.7) {
+            stable.silence = 0;
+            acceptNote(frequencyToMidi(result.frequency));
+          } else {
+            stable.silence++;
+            if (stable.silence >= 3) {
+              stable.lockedMidi = -1;
+              stable.midi = -1;
+              stable.count = 0;
+              stable.recent = [];
+            }
+          }
           lastAnalysis = time;
         }
         audio.frame = requestAnimationFrame(analyse);
@@ -186,7 +222,7 @@ export default function Home() {
 
   function reset() {
     indexRef.current = 0;
-    stableRef.current = { midi: -1, count: 0, lastAdvance: 0 };
+    stableRef.current = { midi: -1, count: 0, lastAdvance: 0, recent: [], silence: 0, lockedMidi: -1 };
     setIndex(0);
     setCompleted(false);
     setHeardMidi(null);
@@ -198,7 +234,7 @@ export default function Home() {
     stopMic();
     setSongId(nextSong.id);
     indexRef.current = 0;
-    stableRef.current = { midi: -1, count: 0, lastAdvance: 0 };
+    stableRef.current = { midi: -1, count: 0, lastAdvance: 0, recent: [], silence: 0, lockedMidi: -1 };
     setIndex(0);
     setCompleted(false);
     setHeardMidi(null);
