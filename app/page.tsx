@@ -41,6 +41,15 @@ function frequencyToMidi(frequency: number) {
   return Math.round(69 + 12 * Math.log2(frequency / 440));
 }
 
+function keyCenter(midi: number, keys: number[]) {
+  const whiteKeys = keys.filter((key) => !BLACK.has(key % 12));
+  if (BLACK.has(midi % 12)) {
+    return keys.filter((key) => key < midi && !BLACK.has(key % 12)).length * 12.5;
+  }
+  const whiteIndex = whiteKeys.indexOf(midi);
+  return (Math.max(0, whiteIndex) + 0.5) * 12.5;
+}
+
 function autoCorrelate(buffer: Float32Array, sampleRate: number) {
   let rms = 0;
   for (const value of buffer) rms += value * value;
@@ -287,12 +296,11 @@ export default function Home() {
         <div className="falling-stage">
           <div className="staff-lines" />
           {visibleNotes.map((note, position) => {
-            const whiteIndex = keyboardKeys.filter((key) => !BLACK.has(key % 12)).indexOf(note.midi);
             return (
               <div
                 className={`falling-note ${position === 0 ? "active" : ""}`}
                 key={`${index}-${position}`}
-                style={{ left: `calc(${Math.max(0, whiteIndex) * 12.5 + 6.25}% - 17px)`, bottom: `${position * 78 + 30}px` }}
+                style={{ left: `calc(${keyCenter(note.midi, keyboardKeys)}% - 17px)`, bottom: `${position * 78 + 30}px` }}
               >
                 <span>{note.name.replace(/\d/, "")}</span>
               </div>
@@ -309,7 +317,7 @@ export default function Home() {
           ))}
           {keyboardKeys.filter((midi) => BLACK.has(midi % 12)).map((midi) => {
             const precedingWhites = keyboardKeys.filter((key) => key < midi && !BLACK.has(key % 12)).length;
-            return <button key={midi} className="black-key" style={{ left: `${precedingWhites * 12.5 - 3.2}%` }} onClick={() => acceptNote(midi, "key")} aria-label={`${midiName(midi)} 연주`} />;
+            return <button key={midi} className={`black-key ${current.midi === midi ? "target" : ""}`} style={{ left: `${precedingWhites * 12.5 - 3.2}%` }} onClick={() => acceptNote(midi, "key")} aria-label={`${midiName(midi)} 연주`}><span>{midiName(midi).replace(/\d/, "")}</span></button>;
           })}
         </div>
       </section>
