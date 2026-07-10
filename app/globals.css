@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+:root { --ink:#17221d; --muted:#6b756f; --cream:#f4f1e8; --green:#287451; --mint:#a9e0bd; --line:#dcded8; }
+* { box-sizing:border-box; }
+html, body { margin:0; min-height:100%; background:#f9f8f4; color:var(--ink); }
+body { font-family:"Pretendard","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif; }
+button, a { font:inherit; }
+button { -webkit-tap-highlight-color:transparent; }
+main { min-height:100vh; display:flex; flex-direction:column; }
+.topbar { height:72px; padding:0 4vw; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); background:rgba(249,248,244,.94); }
+.brand { color:var(--ink); text-decoration:none; font-family:Georgia,serif; font-size:24px; font-weight:700; letter-spacing:-1px; }
+.brand span { display:inline-grid; place-items:center; width:29px; height:29px; margin-right:8px; border-radius:50% 50% 45% 55%; background:var(--green); color:white; font-style:italic; }
+.lesson-pill { padding:9px 17px; border:1px solid #d7dad4; border-radius:999px; color:#59645e; font-size:13px; }
+.lesson-pill b { margin:0 5px; color:#a0aaa4; }
+.icon-button { width:38px; height:38px; border:1px solid #d7dad4; border-radius:50%; background:white; color:#526059; font-size:20px; cursor:pointer; }
+.practice { width:min(860px, 100%); margin:0 auto; padding:22px 24px 0; }
+.progress-row { display:flex; gap:14px; align-items:center; color:#69736d; font-size:12px; }
+.progress-row strong { color:#46514b; font-variant-numeric:tabular-nums; }
+.progress { flex:1; height:4px; background:#e2e4df; border-radius:10px; overflow:hidden; }
+.progress i { display:block; height:100%; background:var(--green); border-radius:10px; transition:width .35s ease; }
+.falling-stage { position:relative; height:430px; margin-top:18px; overflow:hidden; background:linear-gradient(180deg,rgba(244,241,232,0),#f4f1e8 96%); border-radius:22px 22px 0 0; }
+.staff-lines { position:absolute; inset:0; opacity:.45; background:repeating-linear-gradient(to bottom,transparent 0,transparent 69px,#e5e2d9 70px); }
+.falling-note { position:absolute; width:34px; height:54px; display:grid; place-items:center; border-radius:9px; background:#c8cdc9; color:#fff; box-shadow:0 5px 10px rgba(20,50,35,.08); transition:bottom .45s cubic-bezier(.22,.8,.25,1), opacity .25s; }
+.falling-note span { font:700 14px Georgia,serif; }
+.falling-note.active { height:66px; background:var(--green); box-shadow:0 8px 22px rgba(40,116,81,.25); }
+.falling-note.active::after { content:""; position:absolute; bottom:-7px; width:18px; height:7px; background:var(--mint); border-radius:0 0 5px 5px; }
+.target-line { position:absolute; left:0; right:0; bottom:15px; border-top:2px dashed rgba(40,116,81,.35); }
+.target-line span { position:absolute; right:12px; top:-24px; color:var(--green); font-size:10px; font-weight:700; }
+.keyboard { position:relative; height:126px; display:flex; border:1px solid #cfd2cc; border-radius:0 0 14px 14px; overflow:hidden; background:#fff; box-shadow:0 12px 28px rgba(38,52,44,.12); }
+.white-key { position:relative; flex:1; border:0; border-right:1px solid #d6d9d3; background:linear-gradient(#fff,#f1f0eb); cursor:pointer; color:#909992; }
+.white-key:last-of-type { border-right:0; }
+.white-key span { position:absolute; bottom:12px; left:0; right:0; font:600 11px Georgia,serif; }
+.white-key.target { background:linear-gradient(#e8f5ec,#ccebd7); box-shadow:inset 0 -5px 0 var(--green); color:var(--green); }
+.white-key:active { background:#dfe8e1; transform:translateY(2px); }
+.black-key { position:absolute; z-index:2; top:0; width:6.4%; height:76px; border:0; border-radius:0 0 5px 5px; background:linear-gradient(100deg,#25302b,#0c100e); box-shadow:0 5px 7px rgba(0,0,0,.22); cursor:pointer; }
+.black-key:active { height:79px; background:#37433e; }
+.coach { width:min(860px,calc(100% - 48px)); margin:28px auto 0; padding:20px 22px; display:grid; grid-template-columns:1fr auto auto; gap:28px; align-items:center; border:1px solid #d8dcd6; border-radius:16px; background:#fff; box-shadow:0 8px 25px rgba(38,52,44,.05); }
+.coach.complete { border-color:#9fd3b2; background:#f2faf5; }
+.coach-copy { display:flex; align-items:center; gap:14px; min-width:0; }
+.status-dot { width:11px; height:11px; flex:0 0 auto; border-radius:50%; background:var(--green); box-shadow:0 0 0 5px #dcefe3; }
+.coach small, .heard span { display:block; margin-bottom:4px; color:#7b857f; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.09em; }
+.coach h1 { margin:0; font:600 17px/1.35 Georgia,"Noto Serif KR",serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.heard { min-width:90px; text-align:center; }
+.heard strong { font:700 20px Georgia,serif; color:var(--green); }
+.heard i { display:block; width:72px; height:3px; margin-top:7px; background:#e2e5e0; border-radius:5px; overflow:hidden; }
+.heard i b { display:block; height:100%; background:var(--green); transition:width .08s; }
+.mic-button { min-width:145px; padding:12px 17px; border:0; border-radius:10px; background:var(--green); color:#fff; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 5px 14px rgba(40,116,81,.2); }
+.mic-button.listening { background:#eef5f0; color:var(--green); box-shadow:none; border:1px solid #c7decf; }
+.mic-icon { display:inline-block; margin-right:8px; font-size:9px; }
+.listening .mic-icon { animation:pulse 1.2s infinite; }
+footer { margin:auto auto 0; padding:26px 20px 18px; color:#848d87; text-align:center; font-size:11px; }
+footer span { margin-left:7px; }
+@keyframes pulse { 50% { opacity:.3; transform:scale(.75); } }
+@media (max-width:640px) {
+  .topbar { height:62px; padding:0 16px; }
+  .brand { font-size:20px; }.brand span { width:25px; height:25px; }
+  .lesson-pill { max-width:53vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:7px 11px; }
+  .practice { padding:16px 12px 0; }
+  .falling-stage { height:335px; margin-top:12px; border-radius:16px 16px 0 0; }
+  .falling-note { width:27px; height:44px; border-radius:7px; }
+  .falling-note.active { height:54px; }
+  .keyboard { height:106px; }
+  .black-key { height:63px; }
+  .coach { width:calc(100% - 24px); margin-top:16px; padding:16px; grid-template-columns:1fr auto; gap:15px; }
+  .coach-copy { grid-column:1 / -1; }
+  .coach h1 { white-space:normal; font-size:15px; }
+  .heard { text-align:left; }
+  .heard i { width:62px; }
+  .mic-button { min-width:135px; }
+  footer span { display:block; margin:4px 0 0; }
+}
+@media (max-height:760px) and (max-width:640px) { .falling-stage { height:255px; } .keyboard { height:88px; } .black-key { height:54px; } }
+@media (prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; animation:none!important; transition:none!important; } }
