@@ -333,7 +333,12 @@ export default function Home() {
 
   async function handleMidiFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (file) await importBuffer(await file.arrayBuffer(), file.name);
+    if (file) {
+      const buffer = await file.arrayBuffer();
+      // Android document providers frequently report MIDI as octet-stream or
+      // no MIME type at all, so the actual MThd header is the source of truth.
+      await importBuffer(buffer, file.name || "내 MIDI.mid");
+    }
     event.target.value = "";
   }
 
@@ -383,7 +388,7 @@ export default function Home() {
             </button>
           ))}
           <label className="import-card">
-            <input type="file" accept=".mid,.midi,audio/midi,audio/x-midi" onChange={handleMidiFile} disabled={isImporting} />
+            <input type="file" accept="*/*" onChange={handleMidiFile} disabled={isImporting} aria-label="MIDI 파일 선택" />
             <span className="import-plus">+</span>
             <span><strong>{isImporting ? "불러오는 중…" : "내 MIDI 불러오기"}</strong><small>파일은 이 기기에만 저장됩니다</small></span>
           </label>
