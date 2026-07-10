@@ -44,15 +44,23 @@ main { min-height:100vh; display:flex; flex-direction:column; }
 .remove-midi { padding:0 7px; border-left:1px solid #eceeeb!important; color:#9ba39e; font-size:14px; }
 .import-error { margin:7px 0 0; color:#a34538; font-size:10px; }
 .practice { width:min(860px, 100%); margin:0 auto; padding:22px 24px 0; }
+.recognition-settings { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; gap:12px; }
+.recognition-settings > span { color:#77827b; font-size:10px; font-weight:700; white-space:nowrap; }
+.recognition-settings > div { display:flex; padding:3px; gap:2px; border:1px solid #dde1dc; border-radius:10px; background:#eeefeb; }
+.recognition-settings button { padding:7px 11px; border:0; border-radius:7px; background:transparent; color:#758079; font-size:10px; font-weight:700; cursor:pointer; }
+.recognition-settings button.selected { background:#fff; color:var(--green); box-shadow:0 1px 5px rgba(30,55,42,.12); }
 .progress-row { display:flex; gap:14px; align-items:center; color:#69736d; font-size:12px; }
 .progress-row strong { color:#46514b; font-variant-numeric:tabular-nums; }
 .progress { flex:1; height:4px; background:#e2e4df; border-radius:10px; overflow:hidden; }
 .progress i { display:block; height:100%; background:var(--green); border-radius:10px; transition:width .35s ease; }
+.chord-guide { display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding:9px 12px; border-radius:10px; background:#edf3f7; color:#456579; }
+.chord-guide span { font-size:9px; font-weight:800; letter-spacing:.05em; }.chord-guide strong { font:700 12px Georgia,serif; }
 .falling-stage { position:relative; height:430px; margin-top:18px; overflow:hidden; background:linear-gradient(180deg,rgba(244,241,232,0),#f4f1e8 96%); border-radius:22px 22px 0 0; }
 .staff-lines { position:absolute; inset:0; opacity:.45; background:repeating-linear-gradient(to bottom,transparent 0,transparent 69px,#e5e2d9 70px); }
 .falling-note { position:absolute; width:34px; height:54px; display:grid; place-items:center; border-radius:9px; background:#c8cdc9; color:#fff; box-shadow:0 5px 10px rgba(20,50,35,.08); transition:bottom .45s cubic-bezier(.22,.8,.25,1), opacity .25s; }
 .falling-note span { font:700 14px Georgia,serif; }
 .falling-note.active { height:66px; background:var(--green); box-shadow:0 8px 22px rgba(40,116,81,.25); }
+.falling-note.left-hand { background:#668ba2; }.falling-note.left-hand.active { background:#376b89; box-shadow:0 8px 22px rgba(55,107,137,.25); }
 .falling-note.active::after { content:""; position:absolute; bottom:-7px; width:18px; height:7px; background:var(--mint); border-radius:0 0 5px 5px; }
 .target-line { position:absolute; left:0; right:0; bottom:15px; border-top:2px dashed rgba(40,116,81,.35); }
 .target-line span { position:absolute; right:12px; top:-24px; color:var(--green); font-size:10px; font-weight:700; }
@@ -79,6 +87,7 @@ main { min-height:100vh; display:flex; flex-direction:column; }
 .heard i b { display:block; height:100%; background:var(--green); transition:width .08s; }
 .mic-button { min-width:145px; padding:12px 17px; border:0; border-radius:10px; background:var(--green); color:#fff; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 5px 14px rgba(40,116,81,.2); }
 .mic-button.listening { background:#eef5f0; color:var(--green); box-shadow:none; border:1px solid #c7decf; }
+.mic-button.disabled { background:#e6e8e5; color:#909891; box-shadow:none; cursor:not-allowed; }
 .mic-icon { display:inline-block; margin-right:8px; font-size:9px; }
 .listening .mic-icon { animation:pulse 1.2s infinite; }
 footer { margin:auto auto 0; padding:26px 20px 18px; color:#848d87; text-align:center; font-size:11px; }
@@ -91,6 +100,10 @@ footer span { margin-left:7px; }
   .song-library { padding:13px 12px 0; }
   .song-card { min-width:190px; padding:9px 10px; }
   .practice { padding:16px 12px 0; }
+  .recognition-settings { align-items:flex-start; }
+  .recognition-settings > div { width:100%; }
+  .recognition-settings button { flex:1; padding:7px 5px; white-space:nowrap; }
+  .chord-guide { margin-top:9px; }.chord-guide strong { font-size:10px; }
   .falling-stage { height:335px; margin-top:12px; border-radius:16px 16px 0 0; }
   .falling-note { width:27px; height:44px; border-radius:7px; }
   .falling-note.active { height:54px; }

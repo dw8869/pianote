@@ -1,6 +1,6 @@
 export type MidiImport = {
   title: string;
-  notes: number[];
+  chords: number[][];
   trackName: string;
 };
 
@@ -37,6 +37,7 @@ export function parseMidiFile(buffer: ArrayBuffer, filename: string): MidiImport
   if (data.length < 14 || text(data.slice(0, 4)) !== "MThd") throw new Error("표준 MIDI(.mid) 파일이 아닙니다.");
   const headerLength = view.getUint32(4);
   const trackCount = view.getUint16(10);
+  const division = Math.max(24, view.getUint16(12) & 0x7fff);
   let offset = 8 + headerLength;
   const tracks: { name: string; events: NoteEvent[] }[] = [];
 
@@ -90,18 +91,26 @@ export function parseMidiFile(buffer: ArrayBuffer, filename: string): MidiImport
     offset = end;
   }
 
-  const candidates = tracks.filter((track) => track.events.length >= 3);
-  if (!candidates.length) throw new Error("연주할 피아노 노트를 찾지 못했습니다.");
-  const melody = candidates.sort((a, b) => {
-    const average = (events: NoteEvent[]) => events.reduce((sum, event) => sum + event.note, 0) / events.length;
-    return (average(b.events) + Math.log2(b.events.length) * 2) - (average(a.events) + Math.log2(a.events.length) * 2);
-  })[0];
+  const allEvents = tracks.flatMap((track) => track.events).sort((a, b) => a.tick - b.tick || a.note - b.note);
+  if (allEvents.length < 3) throw new Error("연주할 피아노 노트를 찾지 못했습니다.");
 
-  const notesByTick = new Map<number, number>();
-  for (const event of melody.events) notesByTick.set(event.tick, Math.max(event.note, notesByTick.get(event.tick) ?? 0));
-  const notes = [...notesByTick.entries()].sort((a, b) => a[0] - b[0]).map((entry) => entry[1]).slice(0, 2000);
-  if (!notes.length) throw new Error("멜로디 노트가 없습니다.");
-  return { title: filename.replace(/\.(mid|midi)$/i, ""), notes, trackName: melody.name || "Melody" };
+  // Notes beginning within a 1/16-beat window are treated as one two-hand chord.
+  const tolerance = Math.max(1, Math.floor(division / 16));
+  const chords: number[][] = [];
+  let chordStart = -Infinity;
+  let chord = new Set<number>();
+  for (const event of allEvents) {
+    if (event.tick - chordStart > tolerance) {
+      if (chord.size) chords.push([...chord].sort((a, b) => a - b));
+      chord = new Set<number>();
+      chordStart = event.tick;
+    }
+    chord.add(event.note);
+    if (chords.length >= 2000) break;
+  }
+  if (chord.size && chords.length < 2000) chords.push([...chord].sort((a, b) => a - b));
+  if (!chords.length) throw new Error("연주할 노트가 없습니다.");
+  return { title: filename.replace(/\.(mid|midi)$/i, ""), chords, trackName: "Piano" };
 }
 
 const DB_NAME = "pianote-midi";
