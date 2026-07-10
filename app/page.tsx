@@ -3,10 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Note = { midi: number; name: string; hand: "R" | "L" };
+type Song = { id: string; title: string; subtitle: string; level: string; notes: Note[] };
 
-const SONG: Note[] = [
-  64, 64, 65, 67, 67, 65, 64, 62, 60, 60, 62, 64, 64, 62, 62,
-].map((midi) => ({ midi, name: midiName(midi), hand: "R" }));
+const makeNotes = (midis: number[]): Note[] => midis.map((midi) => ({ midi, name: midiName(midi), hand: "R" }));
+
+const SONGS: Song[] = [
+  { id: "ode", title: "환희의 송가", subtitle: "베토벤", level: "입문", notes: makeNotes([64,64,65,67,67,65,64,62,60,60,62,64,64,62,62]) },
+  { id: "twinkle", title: "작은 별", subtitle: "프랑스 전래곡", level: "입문", notes: makeNotes([60,60,67,67,69,69,67,65,65,64,64,62,62,60]) },
+  { id: "mary", title: "메리의 작은 양", subtitle: "미국 전래곡", level: "입문", notes: makeNotes([64,62,60,62,64,64,64,62,62,62,64,67,67]) },
+  { id: "jingle", title: "징글벨", subtitle: "제임스 피어폰트", level: "초급", notes: makeNotes([64,64,64,64,64,64,64,67,60,62,64,65,65,65,65,65,64,64,64,64,62,62,64,62,67]) },
+  { id: "frere", title: "자크 형제", subtitle: "프랑스 전래곡", level: "초급", notes: makeNotes([60,62,64,60,60,62,64,60,64,65,67,64,65,67]) },
+  { id: "scale", title: "다장조 음계", subtitle: "기초 손가락 연습", level: "연습", notes: makeNotes([60,62,64,65,67,69,71,72,71,69,67,65,64,62,60]) },
+];
 
 const KEYS = Array.from({ length: 13 }, (_, i) => 60 + i);
 const BLACK = new Set([1, 3, 6, 8, 10]);
@@ -55,6 +63,7 @@ function autoCorrelate(buffer: Float32Array, sampleRate: number) {
 }
 
 export default function Home() {
+  const [songId, setSongId] = useState(SONGS[0].id);
   const [index, setIndex] = useState(0);
   const [micState, setMicState] = useState<"idle" | "listening" | "error">("idle");
   const [heardMidi, setHeardMidi] = useState<number | null>(null);
@@ -65,10 +74,11 @@ export default function Home() {
   const stableRef = useRef({ midi: -1, count: 0, lastAdvance: 0 });
   const indexRef = useRef(index);
   indexRef.current = index;
+  const song = SONGS.find((item) => item.id === songId) ?? SONGS[0];
 
   const acceptNote = useCallback((midi: number, source: "mic" | "key" = "mic") => {
     if (completed) return;
-    const expected = SONG[indexRef.current].midi;
+    const expected = song.notes[indexRef.current].midi;
     setHeardMidi(midi);
     if (midi !== expected) {
       setMessage(`${midiName(midi)}가 들려요 · ${midiName(expected)}를 연주해 보세요`);
@@ -86,15 +96,15 @@ export default function Home() {
     }
 
     const next = indexRef.current + 1;
-    if (next >= SONG.length) {
+    if (next >= song.notes.length) {
       setCompleted(true);
-      setMessage("연주 완료! 첫 구절을 끝까지 연주했어요.");
+      setMessage(`연주 완료! ${song.title}을(를) 끝까지 연주했어요.`);
     } else {
       indexRef.current = next;
       setIndex(next);
-      setMessage(`좋아요! 다음 음은 ${SONG[next].name}`);
+      setMessage(`좋아요! 다음 음은 ${song.notes[next].name}`);
     }
-  }, [completed]);
+  }, [completed, song]);
 
   const stopMic = useCallback(() => {
     const audio = audioRef.current;
@@ -124,7 +134,7 @@ export default function Home() {
       const audio = { context, stream, frame: 0 };
       audioRef.current = audio;
       setMicState("listening");
-      setMessage(`${SONG[indexRef.current].name}를 연주해 보세요`);
+      setMessage(`${song.notes[indexRef.current].name}를 연주해 보세요`);
 
       let lastAnalysis = 0;
       const analyse = (time: number) => {
@@ -151,25 +161,51 @@ export default function Home() {
     setIndex(0);
     setCompleted(false);
     setHeardMidi(null);
-    setMessage(micState === "listening" ? "E4를 연주해 보세요" : "마이크를 켜고 첫 음 E4를 연주하세요");
+    const firstNote = song.notes[0].name;
+    setMessage(micState === "listening" ? `${firstNote}를 연주해 보세요` : `마이크를 켜고 첫 음 ${firstNote}를 연주하세요`);
   }
 
-  const current = SONG[index];
-  const visibleNotes = SONG.slice(index, index + 6);
+  function selectSong(nextSong: Song) {
+    stopMic();
+    setSongId(nextSong.id);
+    indexRef.current = 0;
+    stableRef.current = { midi: -1, count: 0, lastAdvance: 0 };
+    setIndex(0);
+    setCompleted(false);
+    setHeardMidi(null);
+    setLevel(0);
+    setMessage(`마이크를 켜고 첫 음 ${nextSong.notes[0].name}를 연주하세요`);
+  }
+
+  const current = song.notes[index];
+  const visibleNotes = song.notes.slice(index, index + 6);
 
   return (
     <main>
       <header className="topbar">
         <a className="brand" href="#" aria-label="Pianote 홈"><span>p</span>Pianote</a>
-        <div className="lesson-pill">연습곡 01 <b>·</b> 환희의 송가</div>
+        <div className="lesson-pill">{song.level} <b>·</b> {song.title}</div>
         <button className="icon-button" onClick={reset} aria-label="연습 다시 시작">↻</button>
       </header>
+
+      <nav className="song-library" aria-label="연습곡 선택">
+        <div className="library-heading"><span>연습곡</span><strong>{SONGS.length}곡</strong></div>
+        <div className="song-list">
+          {SONGS.map((item, songIndex) => (
+            <button key={item.id} className={`song-card ${item.id === song.id ? "selected" : ""}`} onClick={() => selectSong(item)} aria-pressed={item.id === song.id}>
+              <span className="song-number">{String(songIndex + 1).padStart(2, "0")}</span>
+              <span className="song-info"><strong>{item.title}</strong><small>{item.subtitle} · {item.notes.length}음</small></span>
+              <em>{item.level}</em>
+            </button>
+          ))}
+        </div>
+      </nav>
 
       <section className="practice" aria-live="polite">
         <div className="progress-row">
           <span>{completed ? "완료" : `${index + 1}번째 음`}</span>
-          <div className="progress"><i style={{ width: `${completed ? 100 : ((index + 1) / SONG.length) * 100}%` }} /></div>
-          <strong>{completed ? SONG.length : index + 1} / {SONG.length}</strong>
+          <div className="progress"><i style={{ width: `${completed ? 100 : ((index + 1) / song.notes.length) * 100}%` }} /></div>
+          <strong>{completed ? song.notes.length : index + 1} / {song.notes.length}</strong>
         </div>
 
         <div className="falling-stage">
