@@ -53,7 +53,6 @@ export default function Home() {
   const [playing,setPlaying] = useState(false);
   const [currentIndex,setCurrentIndex] = useState(0);
   const playheadRef = useRef(0);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const allSongs = [...SONGS,...customSongs];
   const song = allSongs.find((item) => item.id === songId) ?? SONGS[0];
 
@@ -65,7 +64,7 @@ export default function Home() {
   const keyboardEnd = Math.max(keyboardStart + 12, highest + ((12 - highest % 12) % 12));
   const keyboardKeys = Array.from({length:keyboardEnd-keyboardStart+1},(_,i)=>keyboardStart+i);
   const whiteCount = keyboardKeys.filter((key)=>!BLACK.has(key%12)).length;
-  const surfaceWidth = Math.max(720,whiteCount*42);
+  const noteWidth = Math.min(4.4,65/whiteCount);
 
   useEffect(() => {
     if (!playing) return;
@@ -83,14 +82,6 @@ export default function Home() {
     frame=requestAnimationFrame(animate);
     return ()=>cancelAnimationFrame(frame);
   },[playing,song,speed,totalBeats]);
-
-  useEffect(() => {
-    const viewport=viewportRef.current, step=song.steps[currentIndex];
-    if (!viewport||!step) return;
-    const center=keyCenter(step.tones[step.tones.length-1].midi,keyboardKeys)/100*surfaceWidth;
-    const left=viewport.scrollLeft,right=left+viewport.clientWidth;
-    if (center<left+80||center>right-80) viewport.scrollTo({left:Math.max(0,center-viewport.clientWidth/2),behavior:"smooth"});
-  },[currentIndex,songId,surfaceWidth]);
 
   function resetPlayer(){ setPlaying(false);playheadRef.current=0;setPlayhead(0);setCurrentIndex(0); }
   function selectSong(next:Song){ resetPlayer();setSongId(next.id); }
@@ -124,9 +115,9 @@ export default function Home() {
     </section>
     <section className="game-shell">
       <div className="game-toolbar"><div><small>SPEED</small>{SPEEDS.map((value)=><button key={value} className={speed===value?"selected":""} onClick={()=>setSpeed(value)}>{value}×</button>)}</div><div className="timeline"><i style={{width:`${Math.min(100,playhead/totalBeats*100)}%`}}/><span>{Math.min(song.steps.length,currentIndex+1)} / {song.steps.length}</span></div><button className={`play-button ${playing?"playing":""}`} onClick={togglePlay}>{playing?"❚❚ 일시정지":"▶ 재생"}</button></div>
-      <div className="roll-viewport" ref={viewportRef}><div className="roll-surface" style={{width:surfaceWidth}}>
+      <div className="roll-viewport"><div className="roll-surface">
         <div className="piano-roll">{Array.from({length:whiteCount},(_,i)=><i className="lane" key={i} style={{left:`${i/whiteCount*100}%`,width:`${100/whiteCount}%`}}/>)}
-          {visibleSteps.flatMap((step)=>step.tones.map((tone)=>{const bottom=18+(step.start-playhead)/LOOKAHEAD_BEATS*82;const height=Math.max(22,tone.duration/LOOKAHEAD_BEATS*82*5.25);return <div key={`${step.start}-${tone.midi}`} className={`note-bar ${tone.midi<60?"left":"right"}`} style={{left:`calc(${keyCenter(tone.midi,keyboardKeys)}% - 16px)`,bottom:`${bottom}%`,height}}><span>{midiName(tone.midi).replace(/\d/,"")}</span></div>}))}
+          {visibleSteps.flatMap((step)=>step.tones.map((tone)=>{const bottom=18+(step.start-playhead)/LOOKAHEAD_BEATS*82;const height=Math.max(22,tone.duration/LOOKAHEAD_BEATS*82*5.25);const center=keyCenter(tone.midi,keyboardKeys);return <div key={`${step.start}-${tone.midi}`} className={`note-bar ${tone.midi<60?"left":"right"}`} style={{left:`${center-noteWidth/2}%`,width:`${noteWidth}%`,bottom:`${bottom}%`,height}}><span>{midiName(tone.midi).replace(/\d/,"")}</span></div>}))}
           <div className="hit-line"><span>PLAY</span></div>
         </div>
         <div className="keyboard">{keyboardKeys.filter((midi)=>!BLACK.has(midi%12)).map((midi)=><div key={midi} className={`white-key ${current?.tones.some((tone)=>tone.midi===midi)?"target":""}`}><span>{midiName(midi)}</span></div>)}{keyboardKeys.filter((midi)=>BLACK.has(midi%12)).map((midi)=>{const before=keyboardKeys.filter((key)=>key<midi&&!BLACK.has(key%12)).length,w=100/whiteCount;return <div key={midi} className={`black-key ${current?.tones.some((tone)=>tone.midi===midi)?"target":""}`} style={{left:`${before*w-w*.28}%`,width:`${w*.56}%`}}><span>{midiName(midi)}</span></div>})}</div>
